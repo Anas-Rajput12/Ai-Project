@@ -1,0 +1,148 @@
+// Prisma Schema for AI Customer Support SaaS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum DocumentType {
+  PDF
+  URL
+  TEXT
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String?
+  password      String
+  role          Role            @default(USER)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Relations
+  conversations Conversation[]
+  documents     Document[]
+  analytics     UsageAnalytics[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("New Conversation")
+  userId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String       @db.Text
+  sources        Json?        // Array of source document references
+  tokenCount     Int?
+  createdAt      DateTime     @default(now())
+
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model Document {
+  id          String       @id @default(cuid())
+  userId      String
+  name        String
+  type        DocumentType
+  url         String?      // For URL type documents
+  size        Int?         // File size in bytes
+  content     String       @db.Text
+  metadata    Json?        // Additional metadata
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  embeddings  Embedding[]
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("documents")
+}
+
+model Embedding {
+  id         String   @id @default(cuid())
+  documentId String
+  content    String   @db.Text  // The chunk of text
+  embedding  Json     // Vector embedding as JSON array
+  metadata   Json?    // Page number, section, etc.
+  createdAt  DateTime @default(now())
+
+  // Relations
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("embeddings")
+}
+
+model UsageAnalytics {
+  id              String   @id @default(cuid())
+  userId          String
+  date            DateTime @default(now())
+  conversationCount Int     @default(0)
+  messageCount    Int      @default(0)
+  tokenCount      Int      @default(0)
+  documentsAdded  Int      @default(0)
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@map("usage_analytics")
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+  status    String   @default("new") // new, read, replied
+
+  @@index([email])
+  @@index([createdAt])
+  @@map("contacts")
+}
